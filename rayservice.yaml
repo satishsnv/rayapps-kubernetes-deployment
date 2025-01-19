@@ -1,0 +1,63 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: multi-apps
+spec:
+  serveConfigV2: |
+    applications:
+    - name: summarizer
+      route_prefix: /summarize
+      import_path: summarizer.service:deployment
+      runtime_env: {"pip": "summarizer/requirements.txt", config: {"setup_timeout_seconds": 1200}}
+      deployments:
+      - name: Summarizer
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 0.2
+          num_gpus: 0.0
+
+    - name: translator
+      route_prefix: /translate
+      import_path: translator.service:deployment
+      runtime_env: {"pip": "translator/requirements.txt", config: {"setup_timeout_seconds": 1200}}
+      deployments:
+      - name: Translator
+        num_replicas: 2
+        ray_actor_options:
+          num_cpus: 0.2
+          num_gpus: 0.0
+  rayClusterConfig:
+    rayVersion: "2.40.0"
+    headGroupSpec:
+      rayStartParams:
+        ray-client-server-port: "20001"
+        port: "6380"
+      template:
+        spec:
+          containers:
+            - image:  ml-apps:latest
+              name:  headnode
+              imagePullPolicy: Never
+              ports:
+                - containerPort: 6380
+                  name: gcs
+                - containerPort: 8265
+                  name: dashboard
+                - containerPort: 20001
+                  name: client
+                - containerPort: 8000
+                  name: serve
+           
+    workerGroupSpecs:
+    - replicas: 1
+      minReplicas: 1
+      maxReplicas: 3
+      groupName: worker-group
+      rayStartParams: {}
+      template:
+        spec:
+          containers:
+            - image:  ml-apps:latest
+              name:  workernode
+              imagePullPolicy: Never
+
